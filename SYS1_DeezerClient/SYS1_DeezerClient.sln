@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34728.123
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SYS1_DeezerClient", "SYS1_DeezerClient.csproj", "{4CA1B639-2585-49A7-A7FD-D62A97E6D2D0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4CA1B639-2585-49A7-A7FD-D62A97E6D2D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4CA1B639-2585-49A7-A7FD-D62A97E6D2D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4CA1B639-2585-49A7-A7FD-D62A97E6D2D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4CA1B639-2585-49A7-A7FD-D62A97E6D2D0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F4B2275D-CE95-46F8-8445-7B2264A3FC19}
+	EndGlobalSection
+EndGlobal
