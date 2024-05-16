@@ -10,18 +10,24 @@ namespace SYS1_DeezerAPI.Utils
 {
     public static class Logger
     {
-        private static readonly string _logFilePath =
-            Misc.GetProjectDirectoryPath() + $"Logs\\log_{DateTime.Now:dd-MM-yyyy}.txt";
+        private static readonly string _logDirectory =Misc.GetProjectDirectoryPath() + "Logs";
+        private static readonly string _logFileName = $"log_{DateTime.Now:dd-MM-yyyy}.txt";
+
         private static readonly object _consoleLock = new();
 
         private static StreamWriter _streamWriter;
 
         static Logger()
         {
-            if (!File.Exists(_logFilePath))
-                File.Create(_logFilePath).Close();
+            var path = Path.Combine(_logDirectory, _logFileName);
 
-            _streamWriter = new StreamWriter(_logFilePath);
+            if (!Directory.Exists(_logDirectory))
+                Directory.CreateDirectory(_logDirectory);
+
+            if (!File.Exists(path))
+                File.Create(path).Close();
+
+            _streamWriter = new StreamWriter(path);
         }
 
         public static void Log(LogLevel level, string message)
@@ -34,8 +40,7 @@ namespace SYS1_DeezerAPI.Utils
                 {
                     lock (_streamWriter)
                     {
-                        if (_streamWriter == null)
-                            _streamWriter = new StreamWriter(_logFilePath);
+                        _streamWriter ??= new StreamWriter(Path.Combine(_logDirectory, _logFileName));
 
                         _streamWriter.WriteLine($"[{DateTime.Now:HH:mm:ss}] {level.ToString().ToUpper()} | {method?.DeclaringType?.FullName ?? ""}.{method?.Name ?? ""}: {message}");
                     }
