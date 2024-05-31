@@ -16,18 +16,18 @@ namespace SYS1_DeezerAPI.Services
 
         private static readonly string _apiUrl = "https://api.deezer.com/search";
 
-        public static List<Track> SearchTracks(TrackQueryParameters query)
+        public async static Task<List<Track>> SearchTracks(TrackQueryParameters query)
         {
             using HttpClient httpClient = new();
             httpClient.BaseAddress = new Uri(_apiUrl);
 
             var queryDeezer = BuildQuery(query);
-            var response = httpClient.GetAsync(queryDeezer).Result;
+            var response = await httpClient.GetAsync(queryDeezer);
 
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException($"DeezerAPI returned response code: {response.StatusCode}");
 
-            var content = response.Content.ReadAsStringAsync().Result;
+            var content = await response.Content.ReadAsStringAsync();
 
             if (string.IsNullOrWhiteSpace(content))
                 throw new Exception($"Deezer API returned empty response.");

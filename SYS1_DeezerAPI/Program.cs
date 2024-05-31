@@ -1,5 +1,4 @@
 ﻿
-
 using SYS1_DeezerAPI.AppLogic;
 using SYS1_DeezerAPI.Utils;
 
@@ -7,15 +6,14 @@ namespace SYS1_DeezerAPI
 {
     public static class Program
     {
-        public static void Main()
+        public async static Task Main()
         {
             try
             {
-                Thread apiThread = new(a => WebAPI.Start());
-                apiThread.Start();
+                var _task = Task.Run(() => WebAPI.StartAsync());
 
                 Console.WriteLine("###### Press any key to stop application! #####");
-                Console.Read();
+                await Console.In.ReadLineAsync();
             }
             catch (Exception e)
             {

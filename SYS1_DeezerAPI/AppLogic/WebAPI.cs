@@ -29,7 +29,7 @@ namespace SYS1_DeezerAPI.AppLogic
             _listener.Prefixes.Add($"{_url}:{_port}/");
         }
 
-        public static void Start()
+        public async static Task StartAsync()
         {
             _active = true;
             _listener.Start();
@@ -37,18 +37,13 @@ namespace SYS1_DeezerAPI.AppLogic
             Logger.Log(LogLevel.Info, $"WebAPI started listening at port {_port}");
 
             while (_active)
-                ThreadPool.QueueUserWorkItem(HandleRequest, _listener.GetContext());
+            {
+                var context = await _listener.GetContextAsync();
+                _=HandleRequestAsync(context);
+            }     
         }
 
-        public static void Stop()
-        {
-            _active = false;
-            _listener.Stop();
-
-            Logger.Log(LogLevel.Info, "WebAPI stopped. Closing app.");
-        }
-
-        private static void HandleRequest(object? state)
+        private async static Task HandleRequestAsync(object? state)
         {
             HttpListenerContext? context = null;
             try
@@ -62,39 +57,38 @@ namespace SYS1_DeezerAPI.AppLogic
                 TrackQueryParameters trackParams = new(queryParams);
 
                 if (Misc.AreAllPropertiesNull(trackParams))
-                    ReturnResponse(StatusCode.BadRequest, "Invalid query parameters!", context, rawUrl);
+                    await ReturnResponseAsync(StatusCode.BadRequest, "Invalid query parameters!", context, rawUrl);
                 else
                 {
-                    List<Track> results;
                     string queryKey = trackParams.ToString().Replace(' ', '_').ToLower();
 
-                    var cacheResult = TrackCache.ReadFromCache(queryKey);
+                   var cacheResult = await TrackCache.GetOrCreateAsync(queryKey, entry => DeezerClient.SearchTracks(trackParams));
 
-                    if (cacheResult != null)
-                    {
-                        results = cacheResult;
-                        Logger.Log(LogLevel.Trace, $"Data found in cache. (Query: {queryKey})");
-                    }
-                    else
-                    {
-                        results = DeezerClient.SearchTracks(trackParams);
-                        TrackCache.WriteToCache(queryKey, results);
-                        Logger.Log(LogLevel.Trace, $"Writing data to cache. (Query: {queryKey})");
-                    }
+                    //if (cacheResult != null)
+                    //{
+                    //    results = cacheResult;
+                    //    Logger.Log(LogLevel.Trace, $"Data found in cache. (Query: {queryKey})");
+                    //}
+                    //else
+                    //{
+                    //    results = DeezerClient.SearchTracks(trackParams);
+                    //    TrackCache.WriteToCache(queryKey, results);
+                    //    Logger.Log(LogLevel.Trace, $"Writing data to cache. (Query: {queryKey})");
+                    //}
 
-                    if (results.Count == 0) ReturnResponse(StatusCode.NotFound, $"No tracks with query parameters: ", context, queryKey);
-                    else ReturnResponse(StatusCode.Ok, results, context, queryKey);
+                    if (cacheResult.Count == 0) await ReturnResponseAsync(StatusCode.NotFound, $"No tracks with query parameters: ", context, queryKey);
+                    else await ReturnResponseAsync(StatusCode.Ok, cacheResult, context, queryKey);
                 }
             }
             catch (Exception e)
             {
                 Logger.Log(LogLevel.Error, e.Message);
-                ReturnResponse(StatusCode.InternalError, e.Message, context);
+                await ReturnResponseAsync(StatusCode.InternalError, e.Message, context);
             }
 
         }
 
-        private static void ReturnResponse(StatusCode status, object content, HttpListenerContext? context, string? query = null)
+        private async static Task ReturnResponseAsync(StatusCode status, object content, HttpListenerContext? context, string? query = null)
         {
             if (context != null)
             {
@@ -111,7 +105,7 @@ namespace SYS1_DeezerAPI.AppLogic
                             context.Response.ContentLength64 = buffer.Length;
                             context.Response.StatusCode = 200;
                             context.Response.StatusDescription = "OK";
-                            context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                             context.Response.OutputStream.Close();
 
                             Logger.Log(LogLevel.Info, $"Returned {tracks.Count} tracks to client. (query: {query})");
@@ -120,7 +114,7 @@ namespace SYS1_DeezerAPI.AppLogic
                             context.Response.StatusCode = 404;
                             context.Response.StatusDescription = "Not Found";
 
-                            TextResponse((string)content + query, context);
+                            await TextResponseAsync((string)content + query, context);
 
                             Logger.Log(LogLevel.Info, $"Returned NotFound response to client. (query: {query})");
                             break;
@@ -129,14 +123,14 @@ namespace SYS1_DeezerAPI.AppLogic
                             context.Response.StatusDescription = "Bad Request";
 
                             Logger.Log(LogLevel.Info, $"Returned BadRequest response to client. (request: {query})");
-                            TextResponse((string)content, context);
+                            await TextResponseAsync((string)content, context);
 
                             break;
                         case StatusCode.InternalError:
                             context.Response.StatusCode = 500;
                             context.Response.StatusDescription = "Internal Server Error";
 
-                            TextResponse((string)content, context);
+                            await TextResponseAsync((string)content, context);
 
                             break;
                     }
@@ -148,12 +142,12 @@ namespace SYS1_DeezerAPI.AppLogic
             }
         }
 
-        private static void TextResponse(string message, HttpListenerContext? context)
+        private async static Task TextResponseAsync(string message, HttpListenerContext? context)
         {
             byte[] buffer = Encoding.UTF8.GetBytes(message);
             context!.Response.ContentType = "text/plain";
             context.Response.ContentLength64 = buffer.Length;
-            context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
             context.Response.OutputStream.Close();
         }
     }

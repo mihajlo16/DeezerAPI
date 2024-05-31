@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
+using Newtonsoft.Json.Linq;
 using SYS1_DeezerAPI.Models;
 using SYS1_DeezerAPI.Utils;
 using System;
@@ -13,35 +14,27 @@ namespace SYS1_DeezerAPI.Services
     {
         private static readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
 
-        public static void WriteToCache(string key, List<Track> value)
+        public async static Task<List<Track>> GetOrCreateAsync(string key, Func<ICacheEntry, Task<List<Track>>> factory)
         {
-            MemoryCacheEntryOptions cacheEntryOptions = new MemoryCacheEntryOptions()
+            try
+            {
+                var result = await _cache.GetOrCreateAsync(key, async entry =>
+                {
+                    MemoryCacheEntryOptions cacheEntryOptions = new MemoryCacheEntryOptions()
                     .SetSlidingExpiration(TimeSpan.FromSeconds(60))
                     .SetAbsoluteExpiration(TimeSpan.FromSeconds(300))
                     .SetPriority(CacheItemPriority.Normal);
 
-            try
-            {
-                _cache.Set(key, value, cacheEntryOptions);
+                    entry.SetOptions(cacheEntryOptions);
+                    return await factory(entry);
+                });
+                return result ?? new List<Track>();
             }
+
             catch (Exception ex)
             {
                 Logger.Log(LogLevel.Error, ex.Message);
-            }
-        }
-
-        public static List<Track>? ReadFromCache(string key)
-        {
-            try
-            {
-                var cacheResult = _cache.TryGetValue(key, out List<Track>? tracks);
-
-                return tracks;
-            }
-            catch (Exception ex)
-            {
-                Logger.Log(LogLevel.Error, ex.Message);
-                return null;
+                return new List<Track>();
             }
         }
     }
