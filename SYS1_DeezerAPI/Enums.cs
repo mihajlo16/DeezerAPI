@@ -12,14 +12,14 @@ namespace SYS1_DeezerAPI
         Info = 1,
         Warn = 2,
         Error = 3,
-        FatalError = 4,
+        FatalError = 4
     }
 
     public enum StatusCode
     {
-        Ok = 0,
-        NotFound = 1,
-        BadRequest = 2,
-        InternalError = 3
+        Ok = 200,
+        NotFound = 404,
+        BadRequest = 400,
+        InternalError = 500
     }
 }

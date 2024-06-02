@@ -26,15 +26,18 @@ namespace SYS1_DeezerAPI.Services
                     .SetPriority(CacheItemPriority.Normal);
 
                     entry.SetOptions(cacheEntryOptions);
+
+                    Logger.Log(LogLevel.Trace, $"Writing data to cache. (Query: {key})");
                     return await factory(entry);
                 });
-                return result ?? new List<Track>();
+
+                return result ?? [];
             }
 
             catch (Exception ex)
             {
                 Logger.Log(LogLevel.Error, ex.Message);
-                return new List<Track>();
+                return [];
             }
         }
     }

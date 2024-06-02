@@ -38,18 +38,33 @@ namespace SYS1_DeezerAPI.AppLogic
 
             while (_active)
             {
-                var context = await _listener.GetContextAsync();
-                _=HandleRequestAsync(context);
-            }     
+                try
+                {
+                    var context = await _listener.GetContextAsync();
+                    HandleRequestAsync(context);
+                }
+                catch (HttpListenerException ex) when (ex.ErrorCode == 995)
+                {
+                    await Logger.Log(LogLevel.Info, "Listener was stopped. Press ENTER to exit.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Error, $"Unexpected error: {ex.Message}");
+                }
+            }
         }
 
-        private async static Task HandleRequestAsync(object? state)
+        public static void Stop()
         {
-            HttpListenerContext? context = null;
+            _active = false;
+            _listener.Stop();
+        }
+
+        private async static Task HandleRequestAsync(HttpListenerContext context)
+        {
             try
             {
-                context = (HttpListenerContext)state!;
-
                 var rawUrl = context.Request.RawUrl;
                 Logger.Log(LogLevel.Info, $"Processing request: {rawUrl}");
 
@@ -57,27 +72,21 @@ namespace SYS1_DeezerAPI.AppLogic
                 TrackQueryParameters trackParams = new(queryParams);
 
                 if (Misc.AreAllPropertiesNull(trackParams))
+                {
                     await ReturnResponseAsync(StatusCode.BadRequest, "Invalid query parameters!", context, rawUrl);
+                    return;
+                }
+                string queryKey = trackParams.ToString().Replace(' ', '_').ToLower();
+
+                var cacheResult = await TrackCache.GetOrCreateAsync(queryKey, entry => DeezerClient.SearchTracks(trackParams));
+
+                if (cacheResult.Count == 0)
+                {
+                    await ReturnResponseAsync(StatusCode.NotFound, $"No tracks with query parameters: {queryKey}", context, queryKey);
+                }
                 else
                 {
-                    string queryKey = trackParams.ToString().Replace(' ', '_').ToLower();
-
-                   var cacheResult = await TrackCache.GetOrCreateAsync(queryKey, entry => DeezerClient.SearchTracks(trackParams));
-
-                    //if (cacheResult != null)
-                    //{
-                    //    results = cacheResult;
-                    //    Logger.Log(LogLevel.Trace, $"Data found in cache. (Query: {queryKey})");
-                    //}
-                    //else
-                    //{
-                    //    results = DeezerClient.SearchTracks(trackParams);
-                    //    TrackCache.WriteToCache(queryKey, results);
-                    //    Logger.Log(LogLevel.Trace, $"Writing data to cache. (Query: {queryKey})");
-                    //}
-
-                    if (cacheResult.Count == 0) await ReturnResponseAsync(StatusCode.NotFound, $"No tracks with query parameters: ", context, queryKey);
-                    else await ReturnResponseAsync(StatusCode.Ok, cacheResult, context, queryKey);
+                    await ReturnResponseAsync(StatusCode.Ok, cacheResult, context, queryKey);
                 }
             }
             catch (Exception e)
@@ -85,70 +94,35 @@ namespace SYS1_DeezerAPI.AppLogic
                 Logger.Log(LogLevel.Error, e.Message);
                 await ReturnResponseAsync(StatusCode.InternalError, e.Message, context);
             }
-
         }
 
-        private async static Task ReturnResponseAsync(StatusCode status, object content, HttpListenerContext? context, string? query = null)
+        private static async Task ReturnResponseAsync(StatusCode status, object content, HttpListenerContext context, string? query = null)
         {
-            if (context != null)
+            if (context == null) return;
+
+            string jsonResponse;
+
+            if (status == StatusCode.Ok)
             {
-                try
-                {
-                    switch (status)
-                    {
-                        case StatusCode.Ok:
-                            var tracks = (List<Track>)content;
-                            string jsonResponse = JsonConvert.SerializeObject(tracks);
-                            byte[] buffer = Encoding.UTF8.GetBytes(jsonResponse);
-
-                            context.Response.ContentType = "application/json";
-                            context.Response.ContentLength64 = buffer.Length;
-                            context.Response.StatusCode = 200;
-                            context.Response.StatusDescription = "OK";
-                            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                            context.Response.OutputStream.Close();
-
-                            Logger.Log(LogLevel.Info, $"Returned {tracks.Count} tracks to client. (query: {query})");
-                            break;
-                        case StatusCode.NotFound:
-                            context.Response.StatusCode = 404;
-                            context.Response.StatusDescription = "Not Found";
-
-                            await TextResponseAsync((string)content + query, context);
-
-                            Logger.Log(LogLevel.Info, $"Returned NotFound response to client. (query: {query})");
-                            break;
-                        case StatusCode.BadRequest:
-                            context.Response.StatusCode = 400;
-                            context.Response.StatusDescription = "Bad Request";
-
-                            Logger.Log(LogLevel.Info, $"Returned BadRequest response to client. (request: {query})");
-                            await TextResponseAsync((string)content, context);
-
-                            break;
-                        case StatusCode.InternalError:
-                            context.Response.StatusCode = 500;
-                            context.Response.StatusDescription = "Internal Server Error";
-
-                            await TextResponseAsync((string)content, context);
-
-                            break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log(LogLevel.Error, ex.Message);
-                }
+                context.Response.ContentType = "application/json";
+                jsonResponse = JsonConvert.SerializeObject(content);
             }
-        }
+            else
+            {
+                context.Response.ContentType = "text/plain";
+                jsonResponse = (string)content;
+            }
 
-        private async static Task TextResponseAsync(string message, HttpListenerContext? context)
-        {
-            byte[] buffer = Encoding.UTF8.GetBytes(message);
-            context!.Response.ContentType = "text/plain";
-            context.Response.ContentLength64 = buffer.Length;
-            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+            var response = Encoding.UTF8.GetBytes(jsonResponse).AsMemory();
+            context.Response.StatusCode = (int)status;
+            context.Response.StatusDescription = status.ToString();
+            context.Response.ContentLength64 = response.Length;
+
+            await context.Response.OutputStream.WriteAsync(response, CancellationToken.None);
+
+            Logger.Log(LogLevel.Info, $"Returned {status} response to client. (query: {query})");
             context.Response.OutputStream.Close();
         }
     }
+
 }

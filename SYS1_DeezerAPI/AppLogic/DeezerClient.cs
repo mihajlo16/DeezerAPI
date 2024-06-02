@@ -14,13 +14,10 @@ namespace SYS1_DeezerAPI.Services
     public static class DeezerClient
     {
 
-        private static readonly string _apiUrl = "https://api.deezer.com/search";
+        private static readonly HttpClient httpClient = new() { BaseAddress = new Uri("https://api.deezer.com/") };
 
         public async static Task<List<Track>> SearchTracks(TrackQueryParameters query)
         {
-            using HttpClient httpClient = new();
-            httpClient.BaseAddress = new Uri(_apiUrl);
-
             var queryDeezer = BuildQuery(query);
             var response = await httpClient.GetAsync(queryDeezer);
 

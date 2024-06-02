@@ -10,12 +10,11 @@ namespace SYS1_DeezerAPI.Utils
 {
     public static class Logger
     {
-        private static readonly string _logDirectory =Misc.GetProjectDirectoryPath() + "Logs";
+        private static readonly string _logDirectory = Misc.GetProjectDirectoryPath() + "Logs";
         private static readonly string _logFileName = $"log_{DateTime.Now:dd-MM-yyyy}.txt";
-
         private static readonly object _consoleLock = new();
-
-        private static StreamWriter _streamWriter;
+        private static readonly StreamWriter _streamWriter;
+        private static readonly SemaphoreSlim _fileSemaphore = new(1, 1);
 
         static Logger()
         {
@@ -27,31 +26,42 @@ namespace SYS1_DeezerAPI.Utils
             if (!File.Exists(path))
                 File.Create(path).Close();
 
-            _streamWriter = new StreamWriter(path);
+            _streamWriter = new StreamWriter(path, append: true);
         }
 
-        public static void Log(LogLevel level, string message)
+        public async static Task Log(LogLevel level, string message)
         {
-            StackFrame frame = new(1);
-            MethodBase? method = frame.GetMethod();
-            ThreadPool.QueueUserWorkItem(state =>
+            try
             {
+                await _fileSemaphore.WaitAsync();
                 try
                 {
-                    lock (_streamWriter)
-                    {
-                        _streamWriter ??= new StreamWriter(Path.Combine(_logDirectory, _logFileName));
+                    StringBuilder poruka = new("[");
+                    poruka.Append(DateTime.Now.ToString("HH:mm:ss"))
+                          .Append("] [")
+                          .Append(level.ToString().ToUpper())
+                          .Append("] ")
+                          .Append(message);
 
-                        _streamWriter.WriteLine($"[{DateTime.Now:HH:mm:ss}] {level.ToString().ToUpper()} | {method?.DeclaringType?.FullName ?? ""}.{method?.Name ?? ""}: {message}");
-                    }
+                    await _streamWriter.WriteLineAsync(poruka.ToString());
+                    await _streamWriter.FlushAsync();
 
-                    LogConsole(level, $"[{DateTime.Now:HH:mm:ss}] {level.ToString().ToUpper()} | {method?.Name ?? ""}: {message}");
+                    LogConsole(level, poruka.ToString());
                 }
-                catch (Exception ex)
+                finally
                 {
-                    Console.WriteLine($"[Logger] Error while trying to log: {ex.Message}");
+                    _fileSemaphore.Release();
                 }
-            });
+            }
+            catch (Exception ex)
+            {
+                lock (_consoleLock)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkRed;
+                    Console.WriteLine($"[Logger] Error while trying to log: {ex.Message}");
+                    Console.ForegroundColor = default;
+                }
+            }
         }
 
         private static void LogConsole(LogLevel level, string message)
@@ -80,7 +90,6 @@ namespace SYS1_DeezerAPI.Utils
                 }
 
                 Console.WriteLine(message);
-
                 Console.ForegroundColor = originalColor;
             }
         }
