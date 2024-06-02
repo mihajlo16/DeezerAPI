@@ -12,19 +12,18 @@ namespace SYS1_DeezerAPI
             {
                 Console.ForegroundColor = ConsoleColor.Magenta;
                 Console.WriteLine("###### Press ENTER to stop application #####");
-                Console.ForegroundColor = default;
+                Console.ResetColor();
 
 
-                var webApiTask = WebAPI.StartAsync();
+                WebAPI.Start();
 
                 await Console.In.ReadLineAsync();
 
-                WebAPI.Stop();
-                await webApiTask;
+                await WebAPI.StopAsync();
             }
             catch (Exception e)
             {
-                await Logger.Log(LogLevel.FatalError, e.Message);
+                LoggerAsync.Log(LogLevel.FatalError, e.Message);
             }
         }
     }

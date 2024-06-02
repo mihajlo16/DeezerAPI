@@ -8,28 +8,39 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using SYS1_DeezerAPI.Utils;
+using SYS1_DeezerAPI.AppLogic;
+using System.Net.Http;
 
 namespace SYS1_DeezerAPI.Services
 {
     public static class DeezerClient
     {
+        private static readonly string _deezerApiUrl = "https://api.deezer.com/search";
 
-        private static readonly HttpClient httpClient = new() { BaseAddress = new Uri("https://api.deezer.com/") };
+        private static readonly HttpClient _httpClient;
 
-        public async static Task<List<Track>> SearchTracks(TrackQueryParameters query)
+        static DeezerClient()
+        {
+            _httpClient = new HttpClient
+            {
+                BaseAddress = new Uri(_deezerApiUrl)
+            };
+        }
+
+        public async static Task<List<Track>> SearchTracks(TrackQueryParameters query, CancellationToken token)
         {
             var queryDeezer = BuildQuery(query);
-            var response = await httpClient.GetAsync(queryDeezer);
+            var response = await _httpClient.GetAsync(queryDeezer, token);
 
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException($"DeezerAPI returned response code: {response.StatusCode}");
 
-            var content = await response.Content.ReadAsStringAsync();
+            var content = await response.Content.ReadAsStringAsync(token);
 
             if (string.IsNullOrWhiteSpace(content))
                 throw new Exception($"Deezer API returned empty response.");
 
-            Logger.Log(LogLevel.Trace, $"Deezer API successfuly returned response. Query: {queryDeezer}");
+            LoggerAsync.Log(LogLevel.Trace, $"Deezer API successfuly returned response. Query: {queryDeezer}");
 
             var data = JsonConvert.DeserializeObject<Response>(content);
 

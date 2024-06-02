@@ -20,14 +20,14 @@ namespace SYS1_DeezerAPI.Services
             {
                 var result = await _cache.GetOrCreateAsync(key, async entry =>
                 {
-                    MemoryCacheEntryOptions cacheEntryOptions = new MemoryCacheEntryOptions()
+                    var cacheEntryOptions = new MemoryCacheEntryOptions()
                     .SetSlidingExpiration(TimeSpan.FromSeconds(60))
                     .SetAbsoluteExpiration(TimeSpan.FromSeconds(300))
                     .SetPriority(CacheItemPriority.Normal);
 
                     entry.SetOptions(cacheEntryOptions);
 
-                    Logger.Log(LogLevel.Trace, $"Writing data to cache. (Query: {key})");
+                    LoggerAsync.Log(LogLevel.Trace, $"Writing data to cache. (Query: {key})");
                     return await factory(entry);
                 });
 
@@ -36,7 +36,7 @@ namespace SYS1_DeezerAPI.Services
 
             catch (Exception ex)
             {
-                Logger.Log(LogLevel.Error, ex.Message);
+                LoggerAsync.Log(LogLevel.Error, ex.Message);
                 return [];
             }
         }
